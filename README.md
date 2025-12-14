@@ -184,20 +184,6 @@ connected = await client.wait_online(timeout=30.0)
 result = await client.query_timeout(30.0, "@/time", b"")
 ```
 
-### DNS Resolution
-
-pyspotlib includes a custom resolver for g-dns.net domains that decodes base32-encoded IP addresses:
-
-```python
-from pyspotlib import resolve_gdns, resolve_host
-
-# Resolve g-dns.net hostname (base32-encoded IPs)
-ips = resolve_gdns("ep3e7pq.g-dns.net")
-
-# General resolver (handles g-dns.net specially)
-ips = resolve_host("example.com")
-```
-
 ## Address Formats
 
 | Format | Description |

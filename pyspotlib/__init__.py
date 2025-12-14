@@ -9,7 +9,6 @@ from .client import Client, new_client, MessageHandler
 from .store import DiskStore
 from .proto import Message, MsgFlag, PacketType
 from .packetconn import PacketConn, SpotAddr
-from .resolver import resolve_gdns, resolve_host
 
 __version__ = "0.1.0"
 __all__ = [
@@ -22,6 +21,4 @@ __all__ = [
     "MessageHandler",
     "PacketConn",
     "SpotAddr",
-    "resolve_gdns",
-    "resolve_host",
 ]

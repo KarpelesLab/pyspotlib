@@ -140,9 +140,34 @@ class Client:
         async def finger_handler(msg: Message) -> tuple[bytes | None, Exception | None]:
             return self._idcard_bin, None
 
+        async def check_update_handler(msg: Message) -> tuple[bytes | None, Exception | None]:
+            # Emit check_update event - applications can listen for this
+            logger.info("Received check_update request")
+            return None, None
+
+        async def idcard_update_handler(msg: Message) -> tuple[bytes | None, Exception | None]:
+            # Process ID card update notifications from server
+            if len(msg.body) == 0:
+                return None, Exception("empty ID card data received")
+
+            try:
+                idc = IDCard.load(msg.body)
+                # Get hash of the ID card's self key
+                id_hash = hashlib.sha256(idc.self_key).digest()
+                # Update cache
+                self.set_idcard_cache(id_hash, idc)
+                logger.info(f"Updated ID card in cache: k.{base64.urlsafe_b64encode(id_hash).rstrip(b'=').decode()}")
+            except Exception as e:
+                logger.error(f"Failed to parse ID card update: {e}")
+                return None, Exception(f"invalid ID card format: {e}")
+
+            return None, None
+
         self._handlers["ping"] = ping_handler
         self._handlers["version"] = version_handler
         self._handlers["finger"] = finger_handler
+        self._handlers["check_update"] = check_update_handler
+        self._handlers["idcard_update"] = idcard_update_handler
 
     @property
     def target_id(self) -> str:
@@ -159,6 +184,11 @@ class Client:
     def idcard(self) -> IDCard:
         """Get the client's identity card."""
         return self._idcard
+
+    @property
+    def idcard_bin(self) -> bytes:
+        """Get the client's signed identity card as bytes."""
+        return self._idcard_bin
 
     def connection_count(self) -> tuple[int, int]:
         """
@@ -469,6 +499,70 @@ class Client:
             h = buf[i:i+32]
             members.append("k." + base64.urlsafe_b64encode(h).rstrip(b"=").decode("ascii"))
         return members
+
+    async def get_idcard_bin(self, hash_bytes: bytes) -> bytes:
+        """
+        Get raw ID card bytes for a given hash.
+
+        Args:
+            hash_bytes: SHA-256 hash of the public key
+
+        Returns:
+            Raw ID card bytes (signed bottle)
+        """
+        return await self.query("@/idcard_find", hash_bytes)
+
+    async def query_timeout(
+        self,
+        timeout: float,
+        target: str,
+        body: bytes,
+    ) -> bytes:
+        """
+        Send a query with explicit timeout.
+
+        Args:
+            timeout: Timeout in seconds
+            target: Target address
+            body: Message body
+
+        Returns:
+            Response body
+        """
+        return await self.query(target, body, timeout=timeout)
+
+    def listen_packet(self, endpoint: str) -> "PacketConn":
+        """
+        Create a packet connection for easy packet-based messaging.
+
+        Args:
+            endpoint: Endpoint name for receiving messages
+
+        Returns:
+            PacketConn instance
+
+        Usage:
+            conn = client.listen_packet("my_endpoint")
+            data, addr = await conn.read_from()
+            await conn.write_to(b"response", addr)
+            await conn.close()
+        """
+        from .packetconn import PacketConn
+        return PacketConn(self, endpoint)
+
+    def set_idcard_cache(self, hash_bytes: bytes, idcard: IDCard) -> None:
+        """
+        Manually set an ID card in the cache.
+
+        Args:
+            hash_bytes: SHA-256 hash of the public key
+            idcard: The ID card to cache
+        """
+        asyncio.create_task(self._set_cache_async(hash_bytes, idcard))
+
+    async def _set_cache_async(self, hash_bytes: bytes, idcard: IDCard) -> None:
+        async with self._idcard_cache_lock:
+            self._idcard_cache[hash_bytes] = (idcard, asyncio.get_event_loop().time())
 
     # Internal methods
 

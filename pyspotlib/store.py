@@ -81,7 +81,16 @@ class DiskStore:
             encryption_algorithm=serialization.NoEncryption()
         )
 
+        # Find unique filename
         key_path = self.path / f"id_{name}.key"
+        if key_path.exists():
+            i = 1
+            while True:
+                key_path = self.path / f"id_{name}_{i}.key"
+                if not key_path.exists():
+                    break
+                i += 1
+
         with open(key_path, "wb") as f:
             f.write(pem_data)
 
@@ -134,3 +143,20 @@ class DiskStore:
     def has_keys(self) -> bool:
         """Check if any keys are stored."""
         return len(self._keys) > 0
+
+    def keychain(self) -> "Keychain":
+        """
+        Get a Keychain containing all stored keys.
+
+        Returns:
+            Keychain with all keys from this store
+        """
+        from pybottle import Keychain
+        kc = Keychain()
+        for key in self._keys:
+            kc.add_key(key)
+        return kc
+
+    def first_signer(self) -> PrivateKey | None:
+        """Get the first available signing key."""
+        return self._keys[0] if self._keys else None

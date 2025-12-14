@@ -74,6 +74,7 @@ await client.start()
 
 - `client.target_id` - The client's address in `k.<hash>` format
 - `client.idcard` - The client's identity card
+- `client.idcard_bin` - The client's signed identity card as bytes
 
 ### Querying Endpoints
 
@@ -132,6 +133,30 @@ The client automatically responds to these endpoints:
 - `ping` - Echo back the message (up to 128 bytes)
 - `version` - Return library version info
 - `finger` - Return the client's signed ID card
+- `check_update` - Logs update check request
+- `idcard_update` - Updates ID card cache from server notifications
+
+### PacketConn (Packet-based Messaging)
+
+For easy packet-based communication:
+
+```python
+# Create a packet connection
+conn = client.listen_packet("my_endpoint")
+
+# Receive packets
+data, addr = await conn.read_from(timeout=10.0)
+print(f"Received {len(data)} bytes from {addr}")
+
+# Send packets
+await conn.write_to(b"response data", addr)
+
+# Get local address
+print(f"Listening on: {conn.local_addr()}")
+
+# Clean up
+await conn.close()
+```
 
 ### Utility Methods
 
@@ -143,6 +168,9 @@ time = await client.get_time()
 idcard = await client.get_idcard(hash_bytes)
 idcard = await client.get_idcard_for_recipient("k.<hash>/endpoint")
 
+# Get raw ID card bytes
+idcard_bytes = await client.get_idcard_bin(hash_bytes)
+
 # Get group members
 members = await client.get_group_members(group_key_bytes)
 
@@ -151,6 +179,23 @@ total, online = client.connection_count()
 
 # Wait for connection
 connected = await client.wait_online(timeout=30.0)
+
+# Query with explicit timeout (alternative syntax)
+result = await client.query_timeout(30.0, "@/time", b"")
+```
+
+### DNS Resolution
+
+pyspotlib includes a custom resolver for g-dns.net domains that decodes base32-encoded IP addresses:
+
+```python
+from pyspotlib import resolve_gdns, resolve_host
+
+# Resolve g-dns.net hostname (base32-encoded IPs)
+ips = resolve_gdns("ep3e7pq.g-dns.net")
+
+# General resolver (handles g-dns.net specially)
+ips = resolve_host("example.com")
 ```
 
 ## Address Formats
